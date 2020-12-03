@@ -16,7 +16,7 @@ func main() {
     var tracingURL, serverName, localEndpoint string
 	closer, err := tracing.NewOpenTracer(tracingURL, serverName, localEndpoint)
 	if err != nil {
-		fmt.Printf("inin opentracing failed: %s", err)
+		fmt.Printf("init opentracing failed: %s", err)
 
 		return
 	}
