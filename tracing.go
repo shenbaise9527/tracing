@@ -10,10 +10,6 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-type tracingKey string
-
-var OpenTracingKey = tracingKey("X-OpenTracing-Key")
-
 // NewOpenTracer 初始化opentracing,第一个返回值在外部应该调用close方法.
 func NewOpenTracer(tracingURL, serverName, localEndpoint string) (io.Closer, error) {
 	tracer, closer, err := newTracer(tracingURL, serverName, localEndpoint)
@@ -40,7 +36,7 @@ func HttpTracing(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		defer span.Finish()
-		rc := context.WithValue(r.Context(), OpenTracingKey, span)
+		rc := opentracing.ContextWithSpan(r.Context(), span)
 		r = r.WithContext(rc)
 		next(w, r)
 	}
@@ -69,7 +65,7 @@ func OpenTracingServerInterceptor() grpc.UnaryServerInterceptor {
 		}
 
 		defer span.Finish()
-		ctx = context.WithValue(ctx, OpenTracingKey, span)
+		ctx = opentracing.ContextWithSpan(ctx, span)
 		return handler(ctx, req)
 	}
 }
@@ -77,8 +73,8 @@ func OpenTracingServerInterceptor() grpc.UnaryServerInterceptor {
 // OpenTracingClientInterceptor grpc unary clientinterceptor.
 func OpenTracingClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		span, ok := ctx.Value(OpenTracingKey).(opentracing.Span)
-		if ok {
+		span:= opentracing.SpanFromContext(ctx)
+		if span != nil {
 			tracer := span.Tracer()
 			clientspan := tracer.StartSpan(method, opentracing.ChildOf(span.Context()))
 			defer clientspan.Finish()
@@ -101,35 +97,29 @@ func OpenTracingClientInterceptor() grpc.UnaryClientInterceptor {
 
 // GetSpanFromContext 从context中获取span,只适用于http和serverInterceptor的context.
 func GetSpanFromContext(ctx context.Context) opentracing.Span {
-	span, ok := ctx.Value(OpenTracingKey).(opentracing.Span)
-	if ok {
-		return span
-	}
-
-	return nil
+	return opentracing.SpanFromContext(ctx)
 }
 
 // ChildOfSpanFromContext 根据context中的span生成ChildOf的span.
 func ChildOfSpanFromContext(ctx context.Context, operationName string) opentracing.Span {
-	tracer := opentracing.GlobalTracer()
-	span := GetSpanFromContext(ctx)
-	if span == nil {
-		span = tracer.StartSpan(operationName)
-	} else {
-		span = tracer.StartSpan(operationName, opentracing.ChildOf(span.Context()))
-	}
-
-	return span
+	return newSubSpanFromContext(ctx, operationName, opentracing.ChildOf)
 }
 
 // FollowsSpanFromContext 根据context中的span生成FollowsFrom的span.
 func FollowsSpanFromContext(ctx context.Context, operationName string) opentracing.Span {
+	return newSubSpanFromContext(ctx, operationName, opentracing.FollowsFrom)
+}
+
+func newSubSpanFromContext(
+	ctx context.Context,
+	operationName string,
+	op func(opentracing.SpanContext) opentracing.SpanReference) opentracing.Span {
 	tracer := opentracing.GlobalTracer()
 	span := GetSpanFromContext(ctx)
 	if span == nil {
 		span = tracer.StartSpan(operationName)
 	} else {
-		span = tracer.StartSpan(operationName, opentracing.FollowsFrom(span.Context()))
+		span = tracer.StartSpan(operationName, op(span.Context()))
 	}
 
 	return span
