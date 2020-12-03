@@ -1,4 +1,4 @@
-module tracing
+module github.com/shenbaise9527/tracing
 
 go 1.14
 
