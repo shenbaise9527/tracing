@@ -2,9 +2,10 @@ package tracing
 
 import (
 	"context"
-	"github.com/opentracing/opentracing-go/ext"
 	"io"
 	"net/http"
+
+	"github.com/opentracing/opentracing-go/ext"
 
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
@@ -13,7 +14,7 @@ import (
 
 type withHTTPCodeResponse struct {
 	writer http.ResponseWriter
-	code int
+	code   int
 }
 
 func (w *withHTTPCodeResponse) Header() http.Header {
@@ -54,12 +55,12 @@ func HttpTracing(next http.HandlerFunc) http.HandlerFunc {
 			span = tracer.StartSpan(r.RequestURI)
 		}
 
+		ext.HTTPMethod.Set(span, r.Method)
 		defer span.Finish()
 		cw := &withHTTPCodeResponse{writer: w}
 		rc := opentracing.ContextWithSpan(r.Context(), span)
 		r = r.WithContext(rc)
 		defer func() {
-			ext.HTTPMethod.Set(span, r.Method)
 			ext.HTTPStatusCode.Set(span, uint16(cw.code))
 			if cw.code >= http.StatusBadRequest {
 				ext.Error.Set(span, true)
