@@ -77,22 +77,23 @@ func OpenTracingServerInterceptor() grpc.UnaryServerInterceptor {
 		md, ok := metadata.FromIncomingContext(ctx)
 		var span opentracing.Span
 		tracer := opentracing.GlobalTracer()
-		if !ok {
-			span = tracer.StartSpan(info.FullMethod)
-		} else {
+		if ok {
 			carrier := make(opentracing.TextMapCarrier)
 			for k, v := range md {
 				carrier.Set(k, v[0])
 			}
 
-			spanCtx, err := tracer.Extract(opentracing.TextMap, carrier)
-			if err != nil {
-				span = tracer.StartSpan(info.FullMethod)
-			} else {
+			if spanCtx, err := tracer.Extract(opentracing.TextMap, carrier); err == nil {
 				span = tracer.StartSpan(info.FullMethod, opentracing.ChildOf(spanCtx))
 			}
 		}
 
+		if span == nil {
+			span = tracer.StartSpan(info.FullMethod)
+		}
+
+		ext.Component.Set(span, "grpc")
+		ext.SpanKind.Set(span, ext.SpanKindRPCServerEnum)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)
 		resp, err = handler(ctx, req)
@@ -107,16 +108,12 @@ func OpenTracingServerInterceptor() grpc.UnaryServerInterceptor {
 // OpenTracingClientInterceptor grpc unary clientinterceptor.
 func OpenTracingClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		span := opentracing.SpanFromContext(ctx)
-		tracer := opentracing.GlobalTracer()
-		if span != nil {
-			span = tracer.StartSpan(method, opentracing.ChildOf(span.Context()))
-		} else {
-			span = tracer.StartSpan(method)
-		}
-
+		span := ChildOfSpanFromContext(ctx, method)
+		ext.Component.Set(span, "grpc")
+		ext.SpanKind.Set(span, ext.SpanKindRPCClientEnum)
 		defer span.Finish()
 		carrier := make(opentracing.TextMapCarrier)
+		tracer := opentracing.GlobalTracer()
 		err := tracer.Inject(span.Context(), opentracing.TextMap, carrier)
 		if err == nil {
 			var pairs []string
@@ -157,7 +154,7 @@ func newSubSpanFromContext(
 	operationName string,
 	op func(opentracing.SpanContext) opentracing.SpanReference) opentracing.Span {
 	tracer := opentracing.GlobalTracer()
-	span := GetSpanFromContext(ctx)
+	span := opentracing.SpanFromContext(ctx)
 	if span == nil {
 		span = tracer.StartSpan(operationName)
 	} else {
