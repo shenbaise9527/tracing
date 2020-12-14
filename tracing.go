@@ -47,10 +47,10 @@ func HttpTracing(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tracer := opentracing.GlobalTracer()
 		carrier := opentracing.HTTPHeadersCarrier(r.Header)
-		clientSpan, err := tracer.Extract(opentracing.HTTPHeaders, carrier)
+		spanCtx, err := tracer.Extract(opentracing.HTTPHeaders, carrier)
 		var span opentracing.Span
 		if err == nil {
-			span = tracer.StartSpan(r.RequestURI, opentracing.ChildOf(clientSpan))
+			span = tracer.StartSpan(r.RequestURI, opentracing.ChildOf(spanCtx))
 		} else {
 			span = tracer.StartSpan(r.RequestURI)
 		}
