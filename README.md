@@ -9,6 +9,7 @@
 * 函数`FollowsSpanFromContext`从`context`中生成`FollewsFrom`的`opentracing.Span`对象,用于跟踪某些操作过程.
 
 ## 例子
+创建好Tracer对象之后,一定要调用`opentracing.SetGlobalTracer(tracer)`,把tracer对象注册到opentracing的GlobalTracer中.
 ### 连接zipkin
 ``` go
 func main() {

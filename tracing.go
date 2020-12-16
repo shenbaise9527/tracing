@@ -2,7 +2,6 @@ package tracing
 
 import (
 	"context"
-	"io"
 	"net/http"
 
 	"github.com/opentracing/opentracing-go/ext"
@@ -28,18 +27,6 @@ func (w *withHTTPCodeResponse) Write(bytes []byte) (int, error) {
 func (w *withHTTPCodeResponse) WriteHeader(code int) {
 	w.writer.WriteHeader(code)
 	w.code = code
-}
-
-// NewOpenTracer 初始化opentracing,第一个返回值在外部应该调用close方法.
-func NewOpenTracer(tracingURL, serverName, localEndpoint string) (io.Closer, error) {
-	tracer, closer, err := newTracer(tracingURL, serverName, localEndpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	opentracing.InitGlobalTracer(tracer)
-
-	return closer, nil
 }
 
 // HttpTracing http.Handler.
