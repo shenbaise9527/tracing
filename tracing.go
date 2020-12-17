@@ -33,15 +33,10 @@ func (w *withHTTPCodeResponse) WriteHeader(code int) {
 func HttpTracing(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tracer := opentracing.GlobalTracer()
-		carrier := opentracing.HTTPHeadersCarrier(r.Header)
-		spanCtx, err := tracer.Extract(opentracing.HTTPHeaders, carrier)
-		var span opentracing.Span
-		if err == nil {
-			span = tracer.StartSpan(r.RequestURI, opentracing.ChildOf(spanCtx))
-		} else {
-			span = tracer.StartSpan(r.RequestURI)
-		}
-
+		spanCtx, _ := tracer.Extract(
+			opentracing.HTTPHeaders,
+			opentracing.HTTPHeadersCarrier(r.Header))
+		span := tracer.StartSpan(r.RequestURI, opentracing.ChildOf(spanCtx))
 		ext.HTTPMethod.Set(span, r.Method)
 		defer span.Finish()
 		cw := &withHTTPCodeResponse{writer: w}
@@ -62,7 +57,7 @@ func HttpTracing(next http.HandlerFunc) http.HandlerFunc {
 func OpenTracingServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 		md, ok := metadata.FromIncomingContext(ctx)
-		var span opentracing.Span
+		var spanCtx opentracing.SpanContext
 		tracer := opentracing.GlobalTracer()
 		if ok {
 			carrier := make(opentracing.TextMapCarrier)
@@ -70,17 +65,11 @@ func OpenTracingServerInterceptor() grpc.UnaryServerInterceptor {
 				carrier.Set(k, v[0])
 			}
 
-			if spanCtx, err := tracer.Extract(opentracing.TextMap, carrier); err == nil {
-				span = tracer.StartSpan(info.FullMethod, opentracing.ChildOf(spanCtx))
-			}
+			spanCtx, _ = tracer.Extract(opentracing.TextMap, carrier)
 		}
 
-		if span == nil {
-			span = tracer.StartSpan(info.FullMethod)
-		}
-
+		span := tracer.StartSpan(info.FullMethod, ext.RPCServerOption(spanCtx))
 		ext.Component.Set(span, "grpc")
-		ext.SpanKind.Set(span, ext.SpanKindRPCServerEnum)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)
 		resp, err = handler(ctx, req)
@@ -97,7 +86,7 @@ func OpenTracingClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		span := ChildOfSpanFromContext(ctx, method)
 		ext.Component.Set(span, "grpc")
-		ext.SpanKind.Set(span, ext.SpanKindRPCClientEnum)
+		ext.SpanKindRPCClient.Set(span)
 		defer span.Finish()
 		carrier := make(opentracing.TextMapCarrier)
 		tracer := opentracing.GlobalTracer()
