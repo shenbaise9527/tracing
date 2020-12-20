@@ -1,7 +1,7 @@
 # tracing
 
 ## 功能
-* 提供http.Handler函数,`HttpTracing`可以很方便集成到http中间件.
+* 提供http.Handler函数,`OpenTracingHandler`可以很方便集成到http中间件.
 * 提供grpc.UnaryClientInterceptor函数,一元RPC客户端拦截器`OpenTracingClientInterceptor`
 * 提供grpc.UnaryServerInterceptor函数,一元RPC服务端拦截器`OpenTracingServerInterceptor`.
 * 函数`GetSpanFromContext`从`context`中获取`opentracing.Span`对象,主要适用于`http.Handler`和`grpc.UnaryServerInterceptor`的context,然后可以根据需要调用`SetTag`和`Log`来设置相关的信息.

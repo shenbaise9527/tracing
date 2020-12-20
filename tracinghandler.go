@@ -25,8 +25,8 @@ func (w *withHTTPCodeResponse) WriteHeader(code int) {
 	w.code = code
 }
 
-// HttpTracing http.Handler.
-func HttpTracing(next http.HandlerFunc) http.HandlerFunc {
+// OpenTracingHandler http.Handler.
+func OpenTracingHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tracer := opentracing.GlobalTracer()
 		spanCtx, _ := tracer.Extract(
